@@ -1,0 +1,100 @@
+image: gitlab.autonubil.net:5000/shared/magarac:latest
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - gocache
+    - .sonar/cache
+    - bin/
+
+stages:
+  - validate
+  - build
+  - assemble
+  - release
+
+variables:
+  DOCKER_TEST_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH:$CI_COMMIT_REF_NAME
+  DOCKER_RELEASE_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH:latest
+  DOCKER_TAGGED_IMAGE: $CI_REGISTRY/$CI_PROJECT_PATH:$CI_COMMIT_REF_NAME
+  DOCKER_PUBLIC_IMAGE: quay.io/an/$CI_PROJECT_NAME:$CI_COMMIT_REF_NAME
+  REPO: gitlab.autonubil.net/kubernetes/grafana-config-operator
+
+sonar:
+  stage: validate
+  script:
+    - mkdir -p /root/.sonar/cache
+    - sonar-scanner -Dsonar.projectKey=$CI_PROJECT_NAME -Dsonar.sources=. -Dsonar.login=$SONAR_TOKEN -Duser.home=/root/
+    - ls -al /root/.sonar/
+
+build:
+  stage: build
+  script: |
+    export ROOT=$(pwd)
+    mkdir -p $GOPATH/src/$REPO
+    mkdir -p app/
+    mkdir -p /root/gocache
+    ls -alh
+    mv * $GOPATH/src/$REPO/
+    cd $GOPATH/src/$REPO/
+    echo CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.Version=$CI_COMMIT_REF_NAME -X main.BuildDate=$(date --iso-8601=seconds) -X main.Commit=$CI_COMMIT_SHA -s" -a -installsuffix cgo  -v -o $ROOT/bin/grafana-config-operator main.go
+    GOCACHE=/root/gocache CGO_ENABLED=0 GOOS=linux go build -ldflags "-X main.Version=$CI_COMMIT_REF_NAME -X main.BuildDate=$(date --iso-8601=seconds) -X main.Commit=$CI_COMMIT_SHA -s" -a -installsuffix cgo  -v -o $ROOT/bin/grafana-config-operator ./grafana-config-operator.go
+    ls -alh $ROOT/
+
+# ls $ROOT/ -a -R | grep ":$" | sed -e 's/:$//' -e 's/[^-][^\/]*\//--/g' -e 's/^/   /' -e 's/-/|/'
+
+assemble:
+  stage: assemble
+  script:
+    - export ROOT=$(pwd)
+    - cp $ROOT/bin/grafana-config-operator ./
+    - docker version
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build --pull -t "${DOCKER_TEST_IMAGE}"  -f Dockerfile.gitlab-ci .
+    - docker push "${DOCKER_TEST_IMAGE}"
+
+release-image:
+  stage: release
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull "${DOCKER_TEST_IMAGE}"
+    - docker tag "${DOCKER_TEST_IMAGE}" "${DOCKER_RELEASE_IMAGE}"
+    - docker push "${DOCKER_RELEASE_IMAGE}"
+  only:
+    - master
+
+publish-image:
+  stage: release
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker pull "${DOCKER_TEST_IMAGE}"
+    - docker tag "${DOCKER_TEST_IMAGE}" "${DOCKER_TAGGED_IMAGE}"
+    - docker push "${DOCKER_TAGGED_IMAGE}"
+    - docker tag "${DOCKER_TEST_IMAGE}" "${DOCKER_PUBLIC_IMAGE}"
+    - docker push "${DOCKER_PUBLIC_IMAGE}"
+  only:
+    - tags
+
+
+deploy-stable-chart:
+  stage: release
+  script:
+    - cd deployments
+    - mv chart grafana-config-operator
+    - cd grafana-config-operator
+    - helm_publish_chart.sh stable
+    - cat ./index.yaml
+  only:
+   - tags
+
+deploy-master-chart:
+  stage: release
+  script:
+    - cd deployments
+    - mv chart grafana-config-operator
+    - cd grafana-config-operator
+    - helm_publish_chart.sh latest
+    - cat ./index.yaml
+  only:
+   - master
+

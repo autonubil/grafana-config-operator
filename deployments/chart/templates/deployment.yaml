@@ -1,0 +1,98 @@
+kind: Deployment
+apiVersion: extensions/v1beta1
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ template "grafana-config-operator.fullname" . }}
+      release: "{{ .Release.Name }}"
+  template:
+    metadata:
+      labels:
+        app: {{ template "grafana-config-operator.fullname" . }}
+        chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+        release: "{{ .Release.Name }}"
+        heritage: "{{ .Release.Service }}"
+      annotations:
+{{- if .Values.config.prometheus.enabled }}
+        prometheus.io/scrape: 'true'
+        prometheus.io/port: '9350'
+{{- end }}
+    spec:
+{{- if .Values.rbac.create }}
+      serviceAccountName: {{ template "grafana-config-operator.fullname" . }}
+{{- end }}
+      containers:
+      - name: broker
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        args:
+          - /bin/grafana-config-operator
+          - -v{{ .Values.config.loglevel }}
+          - --grafana.endpoint
+          - {{ .Values.config.grafana.endpoint | quote }}
+          - --grafana.auth
+          - {{ .Values.config.grafana.auth | quote }}
+
+
+{{- if gt (int64 (len .Values.config.watchedNamespace ) ) 0 }}
+          - --namespace={{ .Values.config.watchedNamespace | quote}}
+{{- end }}
+{{- if .Values.config.datasources.enabled }}
+          - --datasources.watch
+          - --datasources.label
+          - {{ .Values.config.datasources.label | quote }}
+{{- else }}
+          - --datasources.watch
+          - "false"
+{{- end }}
+{{- if .Values.config.dashboards.enabled }}
+          - --dashboards.watch
+          - --dashboards.label
+          - {{ .Values.config.dashboards.label | quote }}
+{{- else }}
+          - --dashboards.watch
+          - "false"
+{{- end }}
+{{- if .Values.config.prometheus.enabled }}
+          - --prometheus
+{{- else }}
+          - --prometheus
+          - "false"
+{{- end }}
+{{- if .Values.config.dbaasFolder }}
+          - --dbaasFolder
+{{- end }}
+
+        env:
+        {{- if .Values.sentry.enabled}}
+        - name: "SENTRY_DSN"
+          value: {{ .Values.sentry.dsn | quote}}
+        {{- end }}
+{{- if .Values.config.prometheus.enabled }}
+        ports:
+        - containerPort: 9350
+{{- end }}
+
+        resources:
+{{ toYaml .Values.resources | indent 12 }}
+  {{- if .Values.nodeSelector }}
+        nodeSelector:
+  {{ toYaml .Values.nodeSelector | indent 8 }}
+  {{- end }}
+  {{- if .Values.tolerations }}
+        tolerations:
+  {{ toYaml .Values.tolerations | indent 8 }}
+  {{- end }}
+
+{{- if .Values.image.pullSecrets }}
+      imagePullSecrets:
+{{ toYaml .Values.image.pullSecrets | indent 8 }}
+{{- end }}

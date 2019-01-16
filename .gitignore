@@ -1,0 +1,6 @@
+*.exe
+debug
+grafana-config-operator
+.vscode
+.vscode/launch.json
+

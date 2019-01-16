@@ -1,0 +1,91 @@
+{{- if .Values.rbac.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}
+  namespace: {{ .Release.Namespace}}
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+---
+{{- if ne .Values.config.watchedNamespace "" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}-configmaps
+  namespace: {{ .Values.config.watchedNamespace }}
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - list
+  - get
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}-configmaps
+  namespace: {{ .Values.config.watchedNamespace }}
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ template "grafana-config-operator.fullname" . }}-configmaps
+subjects:
+- kind: ServiceAccount
+  name: {{ template "grafana-config-operator.fullname" . }}
+  namespace: {{ .Release.Namespace}}
+---
+{{- else  }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}-configmaps
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - list
+  - get
+  - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ $.Chart.Name }}-{{ $.Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "grafana-config-operator.fullname" . }}-configmaps
+subjects:
+- kind: ServiceAccount
+  name: {{ template "grafana-config-operator.fullname" . }}
+  namespace: {{ .Release.Namespace}}
+{{- end }}
+{{- end }}

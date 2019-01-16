@@ -1,0 +1,49 @@
+image:
+  repository: docker.autonubil.net/kubernetes/grafana-config-operator
+  tag: latest
+  pullPolicy: Always
+  pullSecrets:
+  - name: gitlab-registry
+  - name: autonubil-gitlab-registry
+
+rbac:
+  create: true
+
+nodeSelector:
+#  zone: "data"
+tolerations:
+#  - key: "zone"
+#    operator: "Equal"
+#    value: "data"
+#    effect: "NoSchedule"
+
+## Configure resource requests and limits
+## ref: http://kubernetes.io/docs/user-guide/compute-resources/
+##
+resources:
+#  requests:
+#    cpu: 500m
+#    memory: 1200Mi
+#  limits:
+#    cpu: 1000m
+#    memory: 2000Mi
+
+config:
+  loglevel: 3
+  prometheus:
+    enabled: true
+  grafana:
+    endpoint: http://grafana:3000/
+    auth: "user:password"
+  watchedNamespace: ""
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+  datasources:
+    enabled: true
+    label: grafana_datasource
+  dbaasFolder: true
+
+sentry:
+  enabled: false
+  dsn:

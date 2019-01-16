@@ -1,0 +1,4 @@
+*.exe
+debug
+cmd/broker/debug
+.git

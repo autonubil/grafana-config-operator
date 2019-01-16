@@ -1,0 +1,26 @@
+{{- if .Values.config.prometheus.enabled }}
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ template "grafana-config-operator.fullname" . }}
+  annotations:
+    {{- if .Values.config.prometheus.enabled }}
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9350"
+    prometheus.io/path: /metrics
+    prometheus.io/scheme: "http"
+    {{- end }}
+  labels:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    chart: "{{ .Chart.Name }}-{{ .Chart.Version }}"
+    release: "{{ .Release.Name }}"
+    heritage: "{{ .Release.Service }}"
+spec:
+  selector:
+    app: {{ template "grafana-config-operator.fullname" . }}
+    release: "{{ .Release.Name }}"
+  ports:
+  - protocol: TCP
+    port: 9350
+    targetPort: 9350
+{{- end }}
